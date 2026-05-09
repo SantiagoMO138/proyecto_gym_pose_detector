@@ -118,7 +118,7 @@ class BicepCurlTracker:
     FLEXION_THRESHOLD   = 75.0
 
     TRUNK_SWAY_MIN            = 20.0
-    TRUNK_SWAY_MAX            = 80.0
+    TRUNK_SWAY_MAX            = 30
     ELBOW_SWAY_MAX            = 30.0
     ASYMMETRY_THRESHOLD       = 25.0  # Diferencia máxima de ángulo entre brazos (grados)
     SHOULDER_SHRUG_THRESHOLD  = 0.04  # Diferencia y normalizada entre hombros
@@ -277,17 +277,17 @@ class BicepCurlTracker:
             # --- Corrección postural ---
             # Restricción 1: balanceo lumbar
             if self.TRUNK_SWAY_MIN < smoothed_trunk < self.TRUNK_SWAY_MAX:
-                self.feedback = "Manten la espalda recta, no te balancees hacia atras"
+                self.feedback = "Manten palda recta"
 
             # Restricción 2: separación de codo (brazo más infractor)
             elif any(s is not None and s > self.ELBOW_SWAY_MAX
                      for s in [smoothed_sway_l, smoothed_sway_r]):
-                self.feedback = "Codo pegado a las costillas"
+                self.feedback = "Codos pegados"
 
             # Restricción 3: asimetría de contracción entre brazos
             elif (smoothed_elbow_l is not None and smoothed_elbow_r is not None and
                   abs(smoothed_elbow_l - smoothed_elbow_r) > self.ASYMMETRY_THRESHOLD):
-                self.feedback = "Sube ambos brazos al mismo ritmo"
+                self.feedback = "Nivela ambos brazos"
 
             # Restricción 4: encogimiento de hombro
             elif (self.stage == "arriba" and
@@ -424,20 +424,20 @@ class LateralRaiseTracker:
             # sube hacia el frente en lugar de hacia el lateral.
             elbow_forward = lm_shoulder.z - lm_elbow.z
             if smoothed_shoulder < self.STAGE_UP_THRESHOLD and elbow_forward > self.FORWARD_PLANE_THRESHOLD:
-                self.feedback = "Sube el brazo hacia el lado, no hacia adelante"
+                self.feedback = "Sube lateralmente"
 
             elif smoothed_shoulder < self.SHOULDER_MAX:
-                self.feedback = "No subas por encima del hombro"
+                self.feedback = "No pases del hombro"
 
             elif smoothed_trunk > self.TRUNK_LATERAL_MAX:
-                self.feedback = "Manten el tronco recto, no te inclines"
+                self.feedback = "Nivela tu torso"
 
             elif (smoothed_shoulder < self.STAGE_UP_THRESHOLD and
                   lm_wrist.y * height > lm_elbow.y * height + self.WRIST_BELOW_ELBOW_MARGIN):
-                self.feedback = "Manten la muñeca a la altura del codo"
+                self.feedback = "Nivela la muñeca"
 
             elif smoothed_elbow > self.ELBOW_HYPEREXTENSION:
-                self.feedback = "Flexiona ligeramente los codos"
+                self.feedback = "No extiendas el codo"
 
             elif (smoothed_shoulder < self.STAGE_UP_THRESHOLD and
                   (lm_shoulder_opp.y - lm_shoulder.y) > self.SHOULDER_SHRUG_THRESHOLD):
@@ -468,12 +468,12 @@ class SideBicepCurlTracker:
         4. Hiperextensión del codo en extensión: elbow_angle > 175° en fase "abajo".
     """
 
-    EXTENSION_THRESHOLD = 140.0
+    EXTENSION_THRESHOLD = 120.0
     FLEXION_THRESHOLD = 75.0
 
     TRUNK_SWAY_MAX = 35.0
     ELBOW_SWAY_MAX = 70.0
-    ELBOW_HYPEREXTENSION = 120.0
+    ELBOW_HYPEREXTENSION = 140.0
     # En fase "abajo", la muñeca debe estar por debajo del hombro (y_wrist > y_shoulder en imagen)
     WRIST_ABOVE_SHOULDER_MARGIN = -0.03  # En coordenadas normalizadas
 
@@ -560,19 +560,19 @@ class SideBicepCurlTracker:
 
             # Restricción 1: balanceo lumbar
             if smoothed_trunk > self.TRUNK_SWAY_MAX:
-                self.feedback = "Manten la espalda recta"
+                self.feedback = "Espalda recta"
 
             # Restricción 2: balanceo del codo respecto al torso
             elif smoothed_sway > self.ELBOW_SWAY_MAX:
-                self.feedback = "Manten el codo fijo, no balancees"
+                self.feedback = "Manten el codo fijo"
 
             # Restricción 3: extensión incompleta (trampa de impulso)
             elif self._incomplete_extension:
-                self.feedback = "Baja completamente el brazo entre repeticiones"
+                self.feedback = "Baja completamente"
 
             # Restricción 4: hiperextensión del codo en extensión
             elif self.stage == "abajo" and smoothed_elbow > self.ELBOW_HYPEREXTENSION:
-                self.feedback = "No bloquees el codo en extension"
+                self.feedback = "No bloquees el codo"
 
             else:
                 self.feedback = "Buena postura"
