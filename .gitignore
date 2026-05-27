@@ -7,3 +7,5 @@ __pycache__/
 .env
 .vscode/
 .idea/
+models/
+yolov8n.pt

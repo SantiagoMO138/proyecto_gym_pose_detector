@@ -1,3 +1,11 @@
 mediapipe
 opencv-python
 numpy
+transformers
+torch
+torchvision
+pillow
+huggingface-hub
+ultralytics
+deepface
+tf-keras
