@@ -5,10 +5,10 @@ Incluye:
   - Clasificación automática de ejercicios con ViT (Vision Transformer)
   - Detección de personas con YOLOv8n (gate: sin persona → skip todo)
   - Detección de emociones con DeepFace (cada 60 frames, hilo separado)
+  - HUD moderno y limpio (hud_renderer.py)
 """
 
 import cv2
-import textwrap
 import threading
 from collections import Counter
 from typing import Optional
@@ -18,20 +18,7 @@ from biomechanics import BicepCurlTracker, LateralRaiseTracker
 from exercise_classifier import ExerciseClassifier
 from person_detector import PersonDetector
 from emotion_detector import EmotionDetector
-
-
-def draw_multiline_text(frame, text, x, y, font_scale, color, thickness, max_width=40):
-    """
-    Dibuja texto en múltiples líneas si excede el max_width de caracteres.
-    """
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    wrapped_text = textwrap.wrap(text, width=max_width)
-
-    y_offset = y
-    for line in wrapped_text:
-        cv2.putText(frame, line, (x, y_offset), font,
-                    font_scale, color, thickness, cv2.LINE_AA)
-        y_offset += int(35 * font_scale)
+from hud_renderer import HUDRenderer
 
 
 def _run_emotion(frame, bbox, state, lock):
@@ -59,6 +46,9 @@ def main() -> None:
     print("Cargando detector de personas (YOLOv8n)...")
     person_detector = PersonDetector()
     print("YOLOv8n listo.")
+
+    # Renderizador de HUD moderno
+    hud_renderer = HUDRenderer(target_reps=12)
 
     # Selector de Ejercicios (solo 2: bicep curl y lateral raise)
     trackers = [BicepCurlTracker(), LateralRaiseTracker()]
@@ -231,117 +221,16 @@ def main() -> None:
                     )
                     t.start()
 
-        # HUD (Heads-Up Display)
-        # Dibujar rectángulo semitransparente como fondo del HUD
-        overlay = frame_drawn.copy()
-        cv2.rectangle(overlay, (0, 0), (w, 170), (200, 200, 200), -1)
-        alpha = 0.5
-        cv2.addWeighted(overlay, alpha, frame_drawn, 1 - alpha, 0, frame_drawn)
-
-        # Fila 1: Nombre del ejercicio activo
-        cv2.putText(
+        # ── HUD moderno ──
+        hud_renderer.render(
             frame_drawn,
-            current_tracker.name,
-            (15, 25),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 0, 0),
-            2,
-            cv2.LINE_AA,
+            current_tracker,
+            last_detected_label,
+            last_confidence,
+            last_emotion_data,
+            person_detected=True,
+            is_classifying=is_classifying,
         )
-
-        # Fila 2: Persona OK + Emoción dominante
-        cv2.putText(
-            frame_drawn,
-            "Persona: OK",
-            (15, 50),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (0, 150, 0),
-            1,
-            cv2.LINE_AA,
-        )
-
-        if last_emotion_data and last_emotion_data.get("dominant_emotion"):
-            dom = last_emotion_data["dominant_emotion"]
-            conf = last_emotion_data.get("confidence", 0.0)
-            cv2.putText(
-                frame_drawn,
-                f"Emoción: {dom} ({conf:.0f}%)",
-                (15, 70),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (0, 0, 150),
-                1,
-                cv2.LINE_AA,
-            )
-
-        # Fila 3: Info de clasificación
-        if last_detected_exercise is not None:
-            conf_color = (0, 150, 0) if last_confidence >= CONFIDENCE_THRESHOLD else (0, 0, 255)
-            cv2.putText(
-                frame_drawn,
-                f"Clasificador: {last_detected_label} ({last_confidence:.0%})",
-                (15, 90),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                conf_color,
-                1,
-                cv2.LINE_AA,
-            )
-        else:
-            cv2.putText(
-                frame_drawn,
-                f"Fondo: {last_detected_label}",
-                (15, 90),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.4,
-                (150, 150, 150),
-                1,
-                cv2.LINE_AA,
-            )
-
-        # Indicador de clasificación activa
-        if is_classifying:
-            cv2.circle(frame_drawn, (w - 20, 20), 8, (0, 165, 255), -1)
-
-        # Reps
-        cv2.putText(frame_drawn, 'REPS', (15, 120),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
-        cv2.putText(frame_drawn, str(current_tracker.reps), (15, 160),
-                    cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 0), 3, cv2.LINE_AA)
-
-        # Stage
-        cv2.putText(frame_drawn, 'STAGE', (150, 120),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
-        stage_text = current_tracker.stage if current_tracker.stage else "-"
-        cv2.putText(frame_drawn, stage_text, (150, 160),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 3, cv2.LINE_AA)
-
-        # Feedback
-        cv2.putText(frame_drawn, 'FEEDBACK', (350, 120),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2, cv2.LINE_AA)
-        fb_color = (0, 150, 0) if current_tracker.feedback == "Buena postura" else (
-            0, 0, 255)
-        draw_multiline_text(frame_drawn, current_tracker.feedback,
-                            350, 150, 0.8, fb_color, 2, max_width=30)
-
-        # Top 3 emociones en texto pequeño (debug)
-        if last_emotion_data and last_emotion_data.get("emotions"):
-            emotions = last_emotion_data["emotions"]
-            sorted_emotions = sorted(
-                emotions.items(), key=lambda x: x[1], reverse=True)[:3]
-            emo_text = "  ".join([f"{k[:3]}:{v:.0f}" for k, v in sorted_emotions])
-            cv2.putText(
-                frame_drawn,
-                emo_text,
-                (15, h - 60),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.35,
-                (200, 200, 200),
-                1,
-                cv2.LINE_AA,
-            )
 
         # Mostrar el resultado
         cv2.imshow(window_name, frame_drawn)
