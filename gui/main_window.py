@@ -79,8 +79,8 @@ class MainWindow(QMainWindow):
         self.person_lost = False
 
         # ── Constantes ──
-        self.CLASSIFY_INTERVAL = 30
-        self.PREDICTION_WINDOW_SIZE = 5
+        self.CLASSIFY_INTERVAL = 10
+        self.PREDICTION_WINDOW_SIZE = 2
         self.CONFIDENCE_THRESHOLD = 0.5
         self.EMOTION_INTERVAL = 60
         self.EXERCISE_MAP = {"bicep_curl": 0, "lateral_raise": 1}
@@ -158,9 +158,13 @@ class MainWindow(QMainWindow):
         if self.frame_count % self.CLASSIFY_INTERVAL == 0:
             is_classifying = True
             classification = self.classifier.classify(frame)
-            self.last_detected_label = classification["label"]
-            self.last_confidence = classification["confidence"]
             self.last_detected_exercise = classification["exercise"]
+            if classification["exercise"] is not None:
+                self.last_detected_label = classification["label"]
+                self.last_confidence = classification["confidence"]
+            else:
+                self.last_detected_label = "-"
+                self.last_confidence = 0.0
 
             detected_exercise = classification["exercise"]
             if detected_exercise is not None:
@@ -195,7 +199,8 @@ class MainWindow(QMainWindow):
                 if not self.emotion_state["ready"]:
                     t = threading.Thread(
                         target=_run_emotion,
-                        args=(frame.copy(), person_bbox, self.emotion_state, self.emotion_lock),
+                        args=(frame.copy(), person_bbox,
+                              self.emotion_state, self.emotion_lock),
                         daemon=True,
                     )
                     t.start()
